@@ -83,6 +83,12 @@ def warming_amount(project, baseline_experiment, future_experiment,
     mean_temps = mean_temps.rename(columns={'world': 'baseline'})
     mean_temps['future'] = future_subset.groupby('model').mean(numeric_only=True)[['world']]
     mean_temps['change'] = mean_temps.future - mean_temps.baseline
+    
+    ## Drop NAs in case there are different numbers of models for future vs. baseline experiments.
+    mean_temps = mean_temps.dropna()
+    assert not np.any(np.isnan(mean_temps.future)), 'Mismatch in number of models.'
+    assert not np.any(np.isnan(mean_temps.baseline)), 'Mismatch in number of models.'
+    
     temp_change = mean_temps.change.mean()
     num_models = len(mean_temps)
 
