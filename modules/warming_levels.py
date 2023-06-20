@@ -66,6 +66,8 @@ def warming_for_period(project, experiment, year_range, baseline_temp=13.6, figs
     """
 
     tas = read_all_temps(project=project, experiment=experiment)
+    num_models = len(np.unique(tas.model.values))
+    
     tas['year'] = tas.date.dt.year
     tas['world'] = tas['world'] - baseline_temp
     tas = tas.groupby(['year', 'model']).mean(numeric_only=True).reset_index()
@@ -73,6 +75,8 @@ def warming_for_period(project, experiment, year_range, baseline_temp=13.6, figs
 
     temp_change = tas[np.logical_and(tas.year >= year_range[0],
                                      tas.year <= year_range[1])].world.mean()
+    
+    
 
     if plot:
         fig, ax = plt.subplots(figsize=figsize)
@@ -80,7 +84,7 @@ def warming_for_period(project, experiment, year_range, baseline_temp=13.6, figs
         sns.lineplot(tas_mean, x='year', y='world', c='red', linewidth=2, ax=ax, label='Annual multimodel mean')
         ax.set_xlabel('Year')
         ax.set_ylabel('Warming [deg. C]')
-        ax.set_title((f'Warming over 1850-1900 baseline in {project} {experiment}.\n' + 
+        ax.set_title((f'Warming over 1850-1900 baseline in {project} {experiment} ({num_models} models).\n' + 
                       f'Mean warming for {year_range[0]}-{year_range[1]} is {np.round(temp_change, 2)} deg. C.'))
 
         ax.fill_between(tas.year, y1=0, y2=1, where=np.logical_and(tas.year >= year_range[0],
