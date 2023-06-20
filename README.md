@@ -8,4 +8,4 @@ CMIP6 and CMIP5 warming levels are based on the IPCC Repository supporting the i
 
 The approach is similar to that used in https://github.com/IPCC-WG1/Atlas/tree/main/warming-levels and https://github.com/mathause/cmip_warming_levels.
 
-The main document is the notebook (warming_levels.ipynb)[warming_levels.ipynb] which explains the method and shows examples.
+The main document is the notebook [warming_levels.ipynb](warming_levels.ipynb) which explains the method and shows examples.
