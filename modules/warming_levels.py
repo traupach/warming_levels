@@ -48,48 +48,62 @@ def read_all_temps(project, experiment):
 
     return out
 
-def warming_for_period(project, experiment, year_range, baseline_temp=13.6, figsize=(10,5), plot=True):
+def warming_amount(project, baseline_experiment, future_experiment, 
+                   baseline_range, future_range, figsize=(10,5), plot=True):
     """
     Read all temperature files for a given project/experiment (e.g. CMIP6/ssp585).
     
     Arguments:
         project: The project (e.g. CMIP6).
-        experiment: The experiment (e.g. ssp585).
-        year_range: [stard, end] years inclusive.
-        baseline_temp: Baseline global mean temperture to calculate changes from.
-                       By default this is 13.6 C, based on the 1850-1900 in the IPCC Atlas
-                       (https://interactive-atlas.ipcc.ch/permalink/Gzfztqvg).
+        baseline_experiment: The experiment to use for baseline temperatures (e.g. historical).
+        future_experiment: The experiment to use for future temperatures (e.g. ssp585). 
+        baseline_range: [start, end] years inclusive.
+        future_range: [start, end] year inclusive.
         figsize: Figure size.
         plot: Plot a figure?
         
     Returns: Mean warming for the given year range.
     """
 
-    tas = read_all_temps(project=project, experiment=experiment)
-    num_models = len(np.unique(tas.model.values))
-    
-    tas['year'] = tas.date.dt.year
-    tas['world'] = tas['world'] - baseline_temp
-    tas = tas.groupby(['year', 'model']).mean(numeric_only=True).reset_index()
-    tas_mean = tas.groupby('year').mean(numeric_only=True).reset_index()
+    baseline = read_all_temps(project=project, experiment=baseline_experiment)
+    future = read_all_temps(project=project, experiment=future_experiment)
 
-    temp_change = tas[np.logical_and(tas.year >= year_range[0],
-                                     tas.year <= year_range[1])].world.mean()
-    
-    
+    baseline['year'] = baseline.date.dt.year
+    future['year'] = future.date.dt.year
+
+    baseline_subset = baseline[np.logical_and(baseline.year >= baseline_range[0], 
+                                              baseline.year <= baseline_range[1])]
+    future_subset = future[np.logical_and(future.year >= future_range[0],
+                                          future.year <= future_range[1])]
+
+    future_annual = future.groupby(['year', 'model']).mean(numeric_only=True).reset_index()
+    baseline_subset_annual = baseline_subset.groupby(['year', 'model']).mean(numeric_only=True).reset_index()
+
+    mean_temps = baseline_subset.groupby('model').mean(numeric_only=True)[['world']]
+    mean_temps = mean_temps.rename(columns={'world': 'baseline'})
+    mean_temps['future'] = future_subset.groupby('model').mean(numeric_only=True)[['world']]
+    mean_temps['change'] = mean_temps.future - mean_temps.baseline
+    temp_change = mean_temps.change.mean()
+    num_models = len(mean_temps)
 
     if plot:
         fig, ax = plt.subplots(figsize=figsize)
-        sns.lineplot(tas, x='year', y='world', units='model', estimator=None, c='#ccc', linewidth=1, ax=ax)
-        sns.lineplot(tas_mean, x='year', y='world', c='red', linewidth=2, ax=ax, label='Annual multimodel mean')
-        ax.set_xlabel('Year')
-        ax.set_ylabel('Warming [deg. C]')
-        ax.set_title((f'Warming over 1850-1900 baseline in {project} {experiment} ({num_models} models).\n' + 
-                      f'Mean warming for {year_range[0]}-{year_range[1]} is {np.round(temp_change, 2)} deg. C.'))
+        sns.lineplot(future_annual, x='year', y='world', units='model', estimator=None, c='#ccc', linewidth=1, ax=ax)
+        sns.lineplot(baseline_subset_annual, x='year', y='world', units='model', estimator=None, c='#aaa', linewidth=1, ax=ax)
+        sns.lineplot(baseline_subset_annual.groupby('year').mean(numeric_only=True), 
+                     x='year', y='world', c='red', linewidth=2, ax=ax, label='Annual multimodel mean')
+        sns.lineplot(future_annual.groupby('year').mean(numeric_only=True), x='year', y='world', c='red', 
+                     linewidth=2, ax=ax)
 
-        ax.fill_between(tas.year, y1=0, y2=1, where=np.logical_and(tas.year >= year_range[0],
-                                                                   tas.year <= year_range[1]),
-                        color='yellow', alpha=0.3, transform=ax.get_xaxis_transform())
+        ax.set_xlabel('Year')
+        ax.set_ylabel('Global mean temperature [deg. C]')
+        ax.set_title((f'Global mean temperature from {project} ({num_models} models).\n' + 
+                      f'Mean warming from {baseline_range[0]}-{baseline_range[1]} ({baseline_experiment}) ' + 
+                      f'to {future_range[0]}-{future_range[1]} ({future_experiment}) ' + 
+                      f'is {np.round(temp_change, 2)} deg. C.'))
+
+        ax.axvspan(xmin=baseline_range[0], xmax=baseline_range[1], color='green', alpha=0.1)
+        ax.axvspan(xmin=future_range[0], xmax=future_range[1], color='yellow', alpha=0.3)
 
         plt.show()
         

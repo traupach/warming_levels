@@ -1,6 +1,6 @@
 # Warming levels from CMIP6 and CMIP5 
 
-Code to calculate the degrees of warming for a given project (CMIP5/CMIP6), experiment (RCP8.5, SSP5-8.5), and year range.
+Code to calculate the degrees of warming for a given project (CMIP5/CMIP6), experiment (historical, RCP8.5, SSP5-8.5), and baseline vs future year ranges.
 
 CMIP6 and CMIP5 warming levels are based on the IPCC Repository supporting the implementation of FAIR principles in the IPCC-WG1 Atlas, available at https://github.com/IPCC-WG1/Atlas and licensed by CC-BY-4.0:
 
