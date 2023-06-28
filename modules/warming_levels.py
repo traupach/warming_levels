@@ -51,7 +51,7 @@ def read_all_temps(project, experiment):
 def warming_amount(project, baseline_experiment, future_experiment, 
                    baseline_range, future_range, figsize=(10,5), plot=True):
     """
-    Read all temperature files for a given project/experiment (e.g. CMIP6/ssp585).
+    Determine warming amount for a given year range.
     
     Arguments:
         project: The project (e.g. CMIP6).
