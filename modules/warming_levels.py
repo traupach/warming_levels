@@ -114,3 +114,46 @@ def warming_amount(project, baseline_experiment, future_experiment,
         plt.show()
         
     return temp_change
+
+def obs_anomaly(year_range, best_file='data/BEST_observed_temperatures/Land_and_Ocean_complete.txt', plot=True, figsize=(10,5)):
+    """
+    Determine temperature anomalies over Jan 1951-Dec 1980 for a given period, based on Berkeley Earth surface temperature observations
+    (https://doi.org/10.5194/essd-12-3469-2020)
+    
+    Arguments:
+        year_range: The range of years to find the anomaly for.
+        best_file: The file for BEST temperature data.
+        plot: Make a plot to show the results?
+        
+    Returns:
+        The mean of monthly anomalies for the selected years.
+    """
+    
+    temp = pd.read_csv(best_file, comment='%', header=None, delimiter=r"\s+",
+                       names=['year', 'month', 'monthly_anom', 'monthly_unc', 'annual_anom', 'annual_unc', 
+                              '5yr_anom', '5yr_unc', '10yr_anom', '10yr_unc', '20yr_anom', '20yr_unc']) 
+    
+    temp['day'] = 1
+    temp['time'] = pd.to_datetime(temp[['year', 'month', 'day']])
+    
+    res = temp[np.logical_and(temp.year >= year_range[0],
+                              temp.year <= year_range[1])].monthly_anom.mean()
+
+    if plot:
+        fig, ax = plt.subplots(figsize=figsize)
+        sns.lineplot(temp, x='time', y='monthly_anom', estimator=None, c='black', linewidth=1, ax=ax)
+        
+        ax.set_xlabel('Year')
+        ax.set_ylabel('Global mean temperature [deg. C]')
+        ax.set_title((f'Global mean temperature from BEST observations.\n' + 
+                      f'Mean warming from 1951-1980 ' + 
+                      f'to {year_range[0]}-{year_range[1]} ' + 
+                      f'is {np.round(res, 2)} deg. C.'))
+
+        ax.axvspan(xmin=pd.to_datetime('1850-1-1'), xmax=pd.to_datetime('1900-12-31'), color='green', alpha=0.1)
+        ax.axvspan(xmin=pd.to_datetime(f'{year_range[0]}-1-1'), 
+                   xmax=pd.to_datetime(f'{year_range[1]}-12-31'), color='yellow', alpha=0.3)
+
+        plt.show()
+        
+    return res
