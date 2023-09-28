@@ -115,6 +115,56 @@ def warming_amount(project, baseline_experiment, future_experiment,
         
     return temp_change
 
+def obs_warming(from_range, to_range, best_file='data/BEST_observed_temperatures/Land_and_Ocean_complete.txt', plot=True, figsize=(10,5)):
+    """
+    Determine warming from period A to period B in the BEST archive
+    (https://doi.org/10.5194/essd-12-3469-2020)
+    
+    Arguments:
+        from_range: The range of years to find the anomaly for.
+        to_range: The range of years to find differences for.
+        best_file: The file for BEST temperature data.
+        plot: Make a plot to show the results?
+        
+    Returns:
+        The mean of monthly anomalies for the selected years.
+    """
+    
+    temp = pd.read_csv(best_file, comment='%', header=None, delimiter=r"\s+",
+                       names=['year', 'month', 'monthly_anom', 'monthly_unc', 'annual_anom', 'annual_unc', 
+                              '5yr_anom', '5yr_unc', '10yr_anom', '10yr_unc', '20yr_anom', '20yr_unc']) 
+    
+    temp['day'] = 1
+    temp['time'] = pd.to_datetime(temp[['year', 'month', 'day']])
+    
+    from_anom = temp[np.logical_and(temp.year >= from_range[0],
+                                    temp.year <= from_range[1])].monthly_anom.mean()
+    to_anom = temp[np.logical_and(temp.year >= to_range[0],
+                                  temp.year <= to_range[1])].monthly_anom.mean()
+    
+    res = to_anom - from_anom
+    
+    if plot:
+        fig, ax = plt.subplots(figsize=figsize)
+        sns.lineplot(temp, x='time', y='monthly_anom', estimator=None, c='black', linewidth=1, ax=ax)
+        
+        ax.set_xlabel('Year')
+        ax.set_ylabel('Global mean temperature [deg. C]')
+        ax.set_title((f'Global mean temperature from BEST observations.\n' + 
+                      f'Mean warming from ' +
+                      f'{from_range[0]}-{from_range[1]} ' + 
+                      f'to {to_range[0]}-{to_range[1]} ' + 
+                      f'is {np.round(res, 2)} deg. C.'))
+
+        ax.axvspan(xmin=pd.to_datetime(f'{from_range[0]}-1-1'), 
+                   xmax=pd.to_datetime(f'{from_range[1]}-12-31'), color='green', alpha=0.1)
+        ax.axvspan(xmin=pd.to_datetime(f'{to_range[0]}-1-1'), 
+                   xmax=pd.to_datetime(f'{to_range[1]}-12-31'), color='yellow', alpha=0.3)
+
+        plt.show()
+        
+    return res
+
 def obs_anomaly(year_range, best_file='data/BEST_observed_temperatures/Land_and_Ocean_complete.txt', plot=True, figsize=(10,5)):
     """
     Determine temperature anomalies over Jan 1951-Dec 1980 for a given period, based on Berkeley Earth surface temperature observations
@@ -157,3 +207,59 @@ def obs_anomaly(year_range, best_file='data/BEST_observed_temperatures/Land_and_
         plt.show()
         
     return res
+
+def warming_window(warming_amount, project, baseline_range, baseline_experiment, future_experiment):
+    """
+    Determine the 20 year window over which a model first reaches a certain number of degrees warming.
+    Based on the method outlined by Hauser, Engelbrecht, and Fischer (DOI: 10.5281/zenodo.7390473, 
+    https://github.com/mathause/cmip_warming_levels/blob/main/README.md, accessed 28.09.2023).
+
+    Arguments:
+        warming_amount: Amount in degrees C to look for.
+        project: The project (CMIP6 or CMIP5).
+        baseline_range: The [start, end] years for the baseline.
+        baseline_experiment: Experiment for the baseline range (nearly always 'historical').
+        future_experiment: Experiment for the future years (e.g. 'ssp585').
+
+    Returns: start_year and end_year for 20 year ranges when the warming is first reached.
+    """
+
+    baseline = read_all_temps(project=project, experiment=baseline_experiment)
+    future = read_all_temps(project=project, experiment=future_experiment)
+    
+    baseline['year'] = baseline.date.dt.year.astype('int')
+    future['year'] = future.date.dt.year.astype('int')
+    assert baseline.year.max() == future.year.min() - 1
+    
+    # Concatenate historic to future simulations.
+    temps = pd.concat([baseline, future]).rename(columns={'world': 'temp'})
+    
+    # Calculate annual means.
+    temps = temps.groupby(['model', 'year']).mean(numeric_only=True).reset_index()
+    temps = temps.set_index('model')
+    
+    # Find baseline average.
+    baseline_mean = temps[np.logical_and(temps.year >= baseline_range[0], 
+                                         temps.year <= baseline_range[1])]
+    baseline_mean = baseline_mean.groupby('model').mean()[['temp']]
+    
+    # Subtract baseline average from annual temperatures.
+    temps['change'] = temps.temp - baseline_mean.temp
+    temps = temps.sort_values(['model', 'year'])
+    
+    # Find rolling window average of temperature change.
+    temps = temps.reset_index().set_index('year')
+    avg_change = temps.groupby('model').rolling(20, center=True).mean()
+    avg_change = avg_change.reset_index().dropna()
+    
+    # The center year of the warming window is the first year that the rolling mean change
+    # exceeds the required warming amount.
+    years = avg_change.loc[avg_change.change > warming_amount].groupby('model').year.min()
+    years = years.reset_index()
+    
+    # Find the 20 year period around the centre year.
+    years['start_year'] = (years.year - 20 / 2).astype('int')
+    years['end_year'] = (years.year + (20 / 2 - 1)).astype('int')
+    years = years.drop(columns='year').set_index('model')
+
+    return years
