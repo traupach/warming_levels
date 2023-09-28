@@ -71,14 +71,16 @@ def warming_amount(project, baseline_experiment, future_experiment,
     baseline['year'] = baseline.date.dt.year
     future['year'] = future.date.dt.year
 
-    baseline_subset = baseline[np.logical_and(baseline.year >= baseline_range[0], 
-                                              baseline.year <= baseline_range[1])]
-    future_subset = future[np.logical_and(future.year >= future_range[0],
-                                          future.year <= future_range[1])]
+    # Concatenate baseline and future temps.
+    temps = pd.concat([baseline, future])
+    
+    baseline_subset = temps[np.logical_and(temps.year >= baseline_range[0], 
+                                           temps.year <= baseline_range[1])]
+    future_subset = temps[np.logical_and(temps.year >= future_range[0],
+                                         temps.year <= future_range[1])]
 
-    future_annual = future.groupby(['year', 'model']).mean(numeric_only=True).reset_index()
-    baseline_subset_annual = baseline_subset.groupby(['year', 'model']).mean(numeric_only=True).reset_index()
-
+    temps_annual = temps.groupby(['year', 'model']).mean(numeric_only=True).reset_index()
+    
     mean_temps = baseline_subset.groupby('model').mean(numeric_only=True)[['world']]
     mean_temps = mean_temps.rename(columns={'world': 'baseline'})
     mean_temps['future'] = future_subset.groupby('model').mean(numeric_only=True)[['world']]
@@ -94,11 +96,8 @@ def warming_amount(project, baseline_experiment, future_experiment,
 
     if plot:
         fig, ax = plt.subplots(figsize=figsize)
-        sns.lineplot(future_annual, x='year', y='world', units='model', estimator=None, c='#ccc', linewidth=1, ax=ax)
-        sns.lineplot(baseline_subset_annual, x='year', y='world', units='model', estimator=None, c='#aaa', linewidth=1, ax=ax)
-        sns.lineplot(baseline_subset_annual.groupby('year').mean(numeric_only=True), 
-                     x='year', y='world', c='red', linewidth=2, ax=ax, label='Annual multimodel mean')
-        sns.lineplot(future_annual.groupby('year').mean(numeric_only=True), x='year', y='world', c='red', 
+        sns.lineplot(temps_annual, x='year', y='world', units='model', estimator=None, c='#ccc', linewidth=1, ax=ax)
+        sns.lineplot(temps_annual.groupby('year').mean(numeric_only=True), x='year', y='world', c='red', 
                      linewidth=2, ax=ax)
 
         ax.set_xlabel('Year')
