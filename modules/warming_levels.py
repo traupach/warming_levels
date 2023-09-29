@@ -1,8 +1,14 @@
 import pandas as pd
 import numpy as np
 import glob
+import os
 import seaborn as sns
 import matplotlib.pyplot as plt
+from pathlib import Path
+import xarray
+import datetime
+
+module_path = Path(__file__).parent.parent
 
 def read_temps(file, cols=['date', 'world']):
     """
@@ -39,7 +45,7 @@ def read_all_temps(project, experiment):
     """
     
     out = pd.DataFrame()
-    files = glob.glob(f'data/{project}_tas_landsea/*{experiment}*.csv')
+    files = glob.glob(f'{module_path}/data/{project}_tas_landsea*/*{experiment}*.csv')
     for file in files:
         dat = read_temps(file=file)
         assert np.all(dat.project == project), 'Project/dataset mismatch'
@@ -129,7 +135,7 @@ def obs_warming(from_range, to_range, best_file='data/BEST_observed_temperatures
         The mean of monthly anomalies for the selected years.
     """
     
-    temp = pd.read_csv(best_file, comment='%', header=None, delimiter=r"\s+",
+    temp = pd.read_csv(f'{module_path}/{best_file}', comment='%', header=None, delimiter=r"\s+",
                        names=['year', 'month', 'monthly_anom', 'monthly_unc', 'annual_anom', 'annual_unc', 
                               '5yr_anom', '5yr_unc', '10yr_anom', '10yr_unc', '20yr_anom', '20yr_unc']) 
     
@@ -178,7 +184,7 @@ def obs_anomaly(year_range, best_file='data/BEST_observed_temperatures/Land_and_
         The mean of monthly anomalies for the selected years.
     """
     
-    temp = pd.read_csv(best_file, comment='%', header=None, delimiter=r"\s+",
+    temp = pd.read_csv(f'{module_path}/{best_file}', comment='%', header=None, delimiter=r"\s+",
                        names=['year', 'month', 'monthly_anom', 'monthly_unc', 'annual_anom', 'annual_unc', 
                               '5yr_anom', '5yr_unc', '10yr_anom', '10yr_unc', '20yr_anom', '20yr_unc']) 
     
@@ -236,7 +242,7 @@ def warming_window(warming_amount, project, baseline_range, baseline_experiment,
     # Calculate annual means.
     temps = temps.groupby(['model', 'year']).mean(numeric_only=True).reset_index()
     temps = temps.set_index('model')
-    
+
     # Find baseline average.
     baseline_mean = temps[np.logical_and(temps.year >= baseline_range[0], 
                                          temps.year <= baseline_range[1])]
@@ -262,3 +268,50 @@ def warming_window(warming_amount, project, baseline_range, baseline_experiment,
     years = years.drop(columns='year').set_index('model')
 
     return years
+
+def monthly_mean_temps(desc, CMIP6_dir='/g/data/oi10/replicas', out_dir='data/CMIP6_tas_landsea_local/'):
+    """
+    Calculate and write to disk global monthly mean temperatures for a given model instance.
+
+    Arguments:
+        desc: CMIP6 model descriptor.
+        CMIP6_dir: CMIP6 data directory.
+        out_dir: Output directory.
+    """
+    
+    project, _, _, model, exp, ens = desc.split('.')
+    path = f'{CMIP6_dir}/{desc.replace(".", "/")}/Amon/tas/*/'
+    version = [os.path.basename(x) for x in sorted(glob.glob(f'{path}/v*'))][-1] # Use latest version.
+    path = path + '/' + version + '/*.nc'
+    weights_path = f'{CMIP6_dir}/{desc.replace(".", "/")}/fx/areacella/*/v*/*.nc'
+    dat = xarray.open_mfdataset(path, parallel=True).load()
+    dat['weight'] = xarray.open_mfdataset(weights_path, parallel=True).areacella.load()
+    
+    global_mean_tas = (dat.tas * dat.weight).sum(['lat', 'lon']) / dat.weight.sum()
+    global_mean_tas = global_mean_tas - 273.15
+    global_mean_tas = global_mean_tas.reset_coords(drop=True)
+    global_mean_tas.name = 'world'
+    global_mean_tas['date'] = global_mean_tas.time.dt.strftime('%Y-%m')
+    global_mean_tas = global_mean_tas.to_dataframe().reset_index().drop(columns='time')
+
+    # Write the file header.
+    out_file = f'{out_dir}/CMIP6_{model}_{exp}_{ens}.csv'
+    f = open(out_file, 'w')
+    f.writelines(['#Dataset: Global monthly mean temperatures\n',
+                  '#Reference: NA\n',
+                  f'#Project: {project}\n',
+                  f'#Experiment: {exp}\n',
+                  f'#Model: {model}_{ens}\n',
+                  '#Variable: tas\n', 
+                  '#Variable_longname: mean near-surface air temperature\n',
+                  '#Units: degC\n', 
+                  '#Time_frequency: month\n', 
+                  '#Feature_type: regional mean time series\n', 
+                  '#Regions: global\n', 
+                  '#Area: land and sea\n', 
+                  '#Spatial_resolution: as per source model\n', 
+                  '#Interpolation_method: weighted mean, weights areacella\n',
+                  f'#Creation_Date: {datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")}\n'])
+    f.close()
+    
+    global_mean_tas.to_csv(out_file, index=False, mode='a')
