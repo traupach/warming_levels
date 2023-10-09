@@ -11,8 +11,8 @@
 #Regions: global
 #Area: land and sea
 #Spatial_resolution: as per source model
-#Interpolation_method: weighted mean, weights areacella
-#Creation_Date: 2023-09-29 05:22 UTC
+#Interpolation_method: weighted mean, weights defined by model variable areacella
+#Creation_Date: 2023-09-29 06:06 UTC
 date,world
 1850-01,11.70874
 1850-02,12.314056

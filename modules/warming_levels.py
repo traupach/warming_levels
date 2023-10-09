@@ -272,7 +272,7 @@ def warming_window(warming_amount, project, baseline_range, baseline_experiment,
 def monthly_mean_temps(desc, CMIP6_dir='/g/data/oi10/replicas', out_dir='data/CMIP6_tas_landsea_local/'):
     """
     Calculate and write to disk global monthly mean temperatures for a given model instance.
-
+    
     Arguments:
         desc: CMIP6 model descriptor.
         CMIP6_dir: CMIP6 data directory.
@@ -283,9 +283,18 @@ def monthly_mean_temps(desc, CMIP6_dir='/g/data/oi10/replicas', out_dir='data/CM
     path = f'{CMIP6_dir}/{desc.replace(".", "/")}/Amon/tas/*/'
     version = [os.path.basename(x) for x in sorted(glob.glob(f'{path}/v*'))][-1] # Use latest version.
     path = path + '/' + version + '/*.nc'
-    weights_path = f'{CMIP6_dir}/{desc.replace(".", "/")}/fx/areacella/*/v*/*.nc'
+
     dat = xarray.open_mfdataset(path, parallel=True).load()
-    dat['weight'] = xarray.open_mfdataset(weights_path, parallel=True).areacella.load()
+    
+    weights_path = f'{CMIP6_dir}/{desc.replace(".", "/")}/fx/areacella/*/v*/*.nc'
+    weights_files = glob.glob(weights_path)
+    if len(weights_files) == 0:
+        w, _ = xarray.broadcast(dat.lat, dat.tas)
+        dat['weight'] = np.cos(w.isel(time=0) * np.pi/180)
+        weights_def = 'cosine of latitude'
+    else: 
+        dat['weight'] = xarray.open_mfdataset(weights_path, parallel=True).areacella.load()
+        weights_def = 'model variable areacella'
     
     global_mean_tas = (dat.tas * dat.weight).sum(['lat', 'lon']) / dat.weight.sum()
     global_mean_tas = global_mean_tas - 273.15
@@ -293,7 +302,7 @@ def monthly_mean_temps(desc, CMIP6_dir='/g/data/oi10/replicas', out_dir='data/CM
     global_mean_tas.name = 'world'
     global_mean_tas['date'] = global_mean_tas.time.dt.strftime('%Y-%m')
     global_mean_tas = global_mean_tas.to_dataframe().reset_index().drop(columns='time')
-
+    
     # Write the file header.
     out_file = f'{out_dir}/CMIP6_{model}_{exp}_{ens}.csv'
     f = open(out_file, 'w')
@@ -310,7 +319,7 @@ def monthly_mean_temps(desc, CMIP6_dir='/g/data/oi10/replicas', out_dir='data/CM
                   '#Regions: global\n', 
                   '#Area: land and sea\n', 
                   '#Spatial_resolution: as per source model\n', 
-                  '#Interpolation_method: weighted mean, weights areacella\n',
+                  f'#Interpolation_method: weighted mean, weights defined by {weights_def}\n',
                   f'#Creation_Date: {datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")}\n'])
     f.close()
     
