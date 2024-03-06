@@ -10,4 +10,4 @@ These data are Berkeley Earth global temperature data, with only the "Global Ave
 
 ## Locally calculated land + sea monthly global mean temperatuers from CMIP6 - `CMIP6_tas_landsea_local`
 
-Monthly global mean temperatures calculated from models available on the NCI, using monthly tas data from Amon directory for each model. Mean is weighted by areacella. 
+Monthly global mean temperatures calculated from models available on the NCI, using monthly tas data from Amon directory for each model. Mean is weighted by areacella. CMIP6 data licenses by source are shown here https://wcrp-cmip.github.io/CMIP6_CVs/docs/CMIP6_source_id_licenses.html.
